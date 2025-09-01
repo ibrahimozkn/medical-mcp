@@ -26,8 +26,7 @@ export type SearchField =
   | "drug_interactions"
   | "indications_and_usage"
   | "route"
-  | "dosage_form"
-  | "all";
+  | "dosage_form";
 
 // Retry helper function for FDA API calls
 async function retryFDAApiCall<T>(
@@ -65,45 +64,42 @@ async function retryFDAApiCall<T>(
 export async function searchDrugs(
   query: string,
   limit: number = 10,
-  searchField: SearchField = "all",
+  searchField?: SearchField,
 ): Promise<DrugLabel[]> {
   let searchQuery: string;
 
-  // Build search query based on field type
-  switch (searchField) {
-    case "brand_name":
-      searchQuery = `openfda.brand_name:${query}`;
-      break;
-    case "generic_name":
-      searchQuery = `openfda.generic_name:${query}`;
-      break;
-    case "active_ingredient":
-      // Use substance_name as active_ingredient might not be directly searchable
-      searchQuery = `openfda.substance_name:${query}`;
-      break;
-    case "substance_name":
-      searchQuery = `openfda.substance_name:${query}`;
-      break;
-    case "manufacturer_name":
-      searchQuery = `openfda.manufacturer_name:${query}`;
-      break;
-    case "drug_interactions":
-      searchQuery = `drug_interactions:${query}`;
-      break;
-    case "indications_and_usage":
-      searchQuery = `indications_and_usage:${query}`;
-      break;
-    case "route":
-      searchQuery = `openfda.route:${query}`;
-      break;
-    case "dosage_form":
-      searchQuery = `openfda.dosage_form:${query}`;
-      break;
-    case "all":
-    default:
-      // Search across multiple fields with OR logic
-      searchQuery = `openfda.brand_name:${query}+OR+openfda.generic_name:${query}+OR+openfda.substance_name:${query}+OR+indications_and_usage:${query}`;
-      break;
+  // Build field-specific search query or use general search
+  if (searchField) {
+    switch (searchField) {
+      case "brand_name":
+        searchQuery = `openfda.brand_name:${query}`;
+        break;
+      case "generic_name":
+        searchQuery = `openfda.generic_name:${query}`;
+        break;
+      case "active_ingredient":
+      case "substance_name":
+        searchQuery = `openfda.substance_name:${query}`;
+        break;
+      case "manufacturer_name":
+        searchQuery = `openfda.manufacturer_name:${query}`;
+        break;
+      case "drug_interactions":
+        searchQuery = `drug_interactions:${query}`;
+        break;
+      case "indications_and_usage":
+        searchQuery = `indications_and_usage:${query}`;
+        break;
+      case "route":
+        searchQuery = `openfda.route:${query}`;
+        break;
+      case "dosage_form":
+        searchQuery = `openfda.dosage_form:${query}`;
+        break;
+    }
+  } else {
+    // No specific field - let FDA API search across all fields
+    searchQuery = query;
   }
 
   try {
@@ -130,8 +126,8 @@ export async function searchDrugs(
     (contextualError as any).context = {
       query,
       searchField,
+      searchQuery,
       limit,
-      searchQuery: searchQuery,
       apiUrl: `${FDA_API_BASE}/drug/label.json`,
       retryAttempted: true
     };

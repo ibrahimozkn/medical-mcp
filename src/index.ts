@@ -53,12 +53,10 @@ server.tool(
         "drug_interactions",
         "indications_and_usage",
         "route",
-        "dosage_form",
-        "all"
+        "dosage_form"
       ])
       .optional()
-      .default("all")
-      .describe("Specific field to search in (default: 'all' searches across multiple fields)"),
+      .describe("Specific field to search in (optional - if not provided, searches across all fields)"),
   },
   async ({ query, limit, search_field }) => {
     try {
@@ -69,14 +67,14 @@ server.tool(
           content: [
             {
               type: "text",
-              text: `No drugs found matching "${query}" in ${search_field === "all" ? "any field" : search_field}. Try a different search term or field.`,
+              text: `No drugs found matching "${query}" in ${search_field || "any field"}. Try a different search term or field.`,
             },
           ],
         };
       }
 
       let result = `**Drug Search Results for "${query}"**\n`;
-      result += `Search Field: ${search_field === "all" ? "Multiple fields" : search_field}\n`;
+      result += `Search Field: ${search_field || "Multiple fields"}\n`;
       result += `Found ${drugs.length} drug(s)\n\n`;
 
       drugs.forEach((drug, index) => {
