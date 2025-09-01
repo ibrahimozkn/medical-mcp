@@ -260,37 +260,69 @@ export async function searchPubMedArticles(
       })
       .set("User-Agent", USER_AGENT);
 
-    // Parse XML response (simplified)
+    // Parse XML response
     const articles: PubMedArticle[] = [];
     const xmlText = fetchRes.text;
 
-    // Simple XML parsing for demonstration
-    const pmidMatches = xmlText.match(/<PMID[^>]*>(\d+)<\/PMID>/g);
-    const titleMatches = xmlText.match(
-      /<ArticleTitle[^>]*>([^<]+)<\/ArticleTitle>/g,
-    );
+    // Extract PubmedArticle blocks
+    const articleBlocks = xmlText.match(/<PubmedArticle>[\s\S]*?<\/PubmedArticle>/g) || [];
 
-    if (pmidMatches && titleMatches) {
-      for (
-        let i = 0;
-        i < Math.min(pmidMatches.length, titleMatches.length);
-        i++
-      ) {
-        const pmid = pmidMatches[i].match(/<PMID[^>]*>(\d+)<\/PMID>/)?.[1];
-        const title = titleMatches[i].match(
-          /<ArticleTitle[^>]*>([^<]+)<\/ArticleTitle>/,
-        )?.[1];
+    for (const block of articleBlocks) {
+      const pmidMatch = block.match(/<PMID[^>]*>(\d+)<\/PMID>/);
+      const titleMatch = block.match(/<ArticleTitle[^>]*>([^<]+)<\/ArticleTitle>/);
+      
+      // Extract abstract from AbstractText elements
+      const abstractMatches = block.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/g) || [];
+      let abstract = "";
+      
+      if (abstractMatches.length > 0) {
+        const abstractParts = abstractMatches.map(match => {
+          const labelMatch = match.match(/Label="([^"]*?)"/);
+          const textMatch = match.match(/<AbstractText[^>]*>([\s\S]*?)<\/AbstractText>/);
+          const label = labelMatch ? labelMatch[1] : "";
+          const text = textMatch ? textMatch[1].trim() : "";
+          return label ? `${label}: ${text}` : text;
+        });
+        abstract = abstractParts.join(" ");
+      }
 
-        if (pmid && title) {
-          articles.push({
-            pmid,
-            title,
-            abstract: "Abstract not available in this format",
-            authors: [],
-            journal: "Journal information not available",
-            publication_date: "Date not available",
-          });
+      // Extract authors
+      const authorMatches = block.match(/<Author[^>]*>[\s\S]*?<\/Author>/g) || [];
+      const authors = authorMatches.map(authorBlock => {
+        const lastNameMatch = authorBlock.match(/<LastName>([^<]+)<\/LastName>/);
+        const firstNameMatch = authorBlock.match(/<ForeName>([^<]+)<\/ForeName>/);
+        const lastName = lastNameMatch ? lastNameMatch[1] : "";
+        const firstName = firstNameMatch ? firstNameMatch[1] : "";
+        return firstName ? `${firstName} ${lastName}` : lastName;
+      }).filter(name => name);
+
+      // Extract journal
+      const journalMatch = block.match(/<Title>([^<]+)<\/Title>/);
+      const journal = journalMatch ? journalMatch[1] : "Journal information not available";
+
+      // Extract publication date
+      const pubDateMatch = block.match(/<PubDate>[\s\S]*?<\/PubDate>/);
+      let publicationDate = "Date not available";
+      if (pubDateMatch) {
+        const yearMatch = pubDateMatch[0].match(/<Year>(\d{4})<\/Year>/);
+        const monthMatch = pubDateMatch[0].match(/<Month>([^<]+)<\/Month>/);
+        if (yearMatch) {
+          publicationDate = monthMatch ? `${monthMatch[1]} ${yearMatch[1]}` : yearMatch[1];
         }
+      }
+
+      const pmid = pmidMatch ? pmidMatch[1] : "";
+      const title = titleMatch ? titleMatch[1] : "";
+
+      if (pmid && title) {
+        articles.push({
+          pmid,
+          title,
+          abstract: abstract || "Abstract not available",
+          authors,
+          journal,
+          publication_date: publicationDate,
+        });
       }
     }
 
