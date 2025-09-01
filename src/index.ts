@@ -62,7 +62,7 @@ server.tool(
         result += `   Dosage Form: ${drug.openfda.dosage_form?.[0] || "Not specified"}\n`;
 
         if (drug.purpose && drug.purpose.length > 0) {
-          result += `   Purpose: ${drug.purpose[0].substring(0, 200)}${drug.purpose[0].length > 200 ? "..." : ""}\n`;
+          result += `   Purpose: ${drug.purpose[0]}\n`;
         }
 
         result += `   Last Updated: ${drug.effective_time}\n\n`;
@@ -130,7 +130,7 @@ server.tool(
       if (drug.warnings && drug.warnings.length > 0) {
         result += `**Warnings:**\n`;
         drug.warnings.forEach((warning, index) => {
-          result += `${index + 1}. ${warning.substring(0, 300)}${warning.length > 300 ? "..." : ""}\n`;
+          result += `${index + 1}. ${warning}\n`;
         });
         result += "\n";
       }
@@ -138,7 +138,7 @@ server.tool(
       if (drug.drug_interactions && drug.drug_interactions.length > 0) {
         result += `**Drug Interactions:**\n`;
         drug.drug_interactions.forEach((interaction, index) => {
-          result += `${index + 1}. ${interaction.substring(0, 300)}${interaction.length > 300 ? "..." : ""}\n`;
+          result += `${index + 1}. ${interaction}\n`;
         });
         result += "\n";
       }
@@ -276,8 +276,14 @@ server.tool(
         result += `   PMID: ${article.pmid}\n`;
         result += `   Journal: ${article.journal}\n`;
         result += `   Publication Date: ${article.publication_date}\n`;
+        if (article.authors && article.authors.length > 0) {
+          result += `   Authors: ${article.authors.join(", ")}\n`;
+        }
         if (article.doi) {
           result += `   DOI: ${article.doi}\n`;
+        }
+        if (article.abstract) {
+          result += `   Abstract: ${article.abstract}\n`;
         }
         result += "\n";
       });
@@ -403,7 +409,7 @@ server.tool(
           result += `   URL: ${article.url}\n`;
         }
         if (article.abstract) {
-          result += `   Abstract: ${article.abstract.substring(0, 300)}${article.abstract.length > 300 ? "..." : ""}\n`;
+          result += `   Abstract: ${article.abstract}\n`;
         }
         result += "\n";
       });
