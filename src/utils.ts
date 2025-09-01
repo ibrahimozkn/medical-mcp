@@ -4,6 +4,7 @@ import {
   PubMedArticle,
   RxNormDrug,
   WHOIndicator,
+  AdverseEvent,
 } from "./types.js";
 import superagent from "superagent";
 import puppeteer from "puppeteer";
@@ -16,14 +17,101 @@ import {
   WHO_API_BASE,
 } from "./constants.js";
 
+export type SearchField = 
+  | "brand_name"
+  | "generic_name" 
+  | "active_ingredient"
+  | "substance_name"
+  | "manufacturer_name"
+  | "drug_interactions"
+  | "indications_and_usage"
+  | "route"
+  | "dosage_form"
+  | "all";
+
 export async function searchDrugs(
   query: string,
+  limit: number = 10,
+  searchField: SearchField = "all",
+): Promise<DrugLabel[]> {
+  let searchQuery: string;
+
+  // Build search query based on field type
+  switch (searchField) {
+    case "brand_name":
+      searchQuery = `openfda.brand_name:${query}`;
+      break;
+    case "generic_name":
+      searchQuery = `openfda.generic_name:${query}`;
+      break;
+    case "active_ingredient":
+      // Use substance_name as active_ingredient might not be directly searchable
+      searchQuery = `openfda.substance_name:${query}`;
+      break;
+    case "substance_name":
+      searchQuery = `openfda.substance_name:${query}`;
+      break;
+    case "manufacturer_name":
+      searchQuery = `openfda.manufacturer_name:${query}`;
+      break;
+    case "drug_interactions":
+      searchQuery = `drug_interactions:${query}`;
+      break;
+    case "indications_and_usage":
+      searchQuery = `indications_and_usage:${query}`;
+      break;
+    case "route":
+      searchQuery = `openfda.route:${query}`;
+      break;
+    case "dosage_form":
+      searchQuery = `openfda.dosage_form:${query}`;
+      break;
+    case "all":
+    default:
+      // Search across multiple fields with OR logic
+      searchQuery = `openfda.brand_name:${query}+OR+openfda.generic_name:${query}+OR+openfda.substance_name:${query}+OR+indications_and_usage:${query}`;
+      break;
+  }
+
+  const res = await superagent
+    .get(`${FDA_API_BASE}/drug/label.json`)
+    .query({
+      search: searchQuery,
+      limit: limit,
+    })
+    .set("User-Agent", USER_AGENT);
+
+  return res.body.results || [];
+}
+
+// Enhanced search function for active ingredients specifically
+export async function searchDrugsByActiveIngredient(
+  ingredient: string,
+  limit: number = 10,
+): Promise<DrugLabel[]> {
+  // Search in substance_name field (active_ingredient may not be searchable directly)
+  const searchQuery = `openfda.substance_name:${ingredient}`;
+  
+  const res = await superagent
+    .get(`${FDA_API_BASE}/drug/label.json`)
+    .query({
+      search: searchQuery,
+      limit: limit,
+    })
+    .set("User-Agent", USER_AGENT);
+
+  return res.body.results || [];
+}
+
+// Search for drug interactions
+export async function searchDrugInteractions(
+  drugName: string,
   limit: number = 10,
 ): Promise<DrugLabel[]> {
   const res = await superagent
     .get(`${FDA_API_BASE}/drug/label.json`)
     .query({
-      search: `openfda.brand_name:${query}`,
+      search: `drug_interactions:${drugName}`,
       limit: limit,
     })
     .set("User-Agent", USER_AGENT);
@@ -327,6 +415,104 @@ export async function searchPubMedArticles(
     }
 
     return articles;
+  } catch (error) {
+    return [];
+  }
+}
+
+// FDA Adverse Events API functions
+export async function searchAdverseEvents(
+  query: string,
+  searchField: string = "reactionmeddrapt",
+  limit: number = 10,
+): Promise<AdverseEvent[]> {
+  try {
+    let searchQuery: string;
+    
+    if (searchField === "medicinalproduct") {
+      searchQuery = `patient.drug.medicinalproduct:${query}`;
+    } else {
+      searchQuery = `patient.reaction.${searchField}:${query}`;
+    }
+    
+    const res = await superagent
+      .get(`${FDA_API_BASE}/drug/event.json`)
+      .query({
+        search: searchQuery,
+        limit: limit,
+      })
+      .set("User-Agent", USER_AGENT);
+
+    return res.body.results || [];
+  } catch (error) {
+    return [];
+  }
+}
+
+export async function searchAdverseEventsByDrug(
+  drugName: string,
+  limit: number = 10,
+): Promise<AdverseEvent[]> {
+  try {
+    // Search for adverse events by drug name (medicinal product)
+    const searchQuery = `patient.drug.medicinalproduct:${drugName}`;
+    
+    const res = await superagent
+      .get(`${FDA_API_BASE}/drug/event.json`)
+      .query({
+        search: searchQuery,
+        limit: limit,
+      })
+      .set("User-Agent", USER_AGENT);
+
+    return res.body.results || [];
+  } catch (error) {
+    return [];
+  }
+}
+
+export async function searchAdverseEventsByReaction(
+  reaction: string,
+  limit: number = 10,
+): Promise<AdverseEvent[]> {
+  try {
+    // Search for adverse events by reaction type using MedDRA preferred terms
+    const searchQuery = `patient.reaction.reactionmeddrapt:${reaction}`;
+    
+    const res = await superagent
+      .get(`${FDA_API_BASE}/drug/event.json`)
+      .query({
+        search: searchQuery,
+        limit: limit,
+      })
+      .set("User-Agent", USER_AGENT);
+
+    return res.body.results || [];
+  } catch (error) {
+    return [];
+  }
+}
+
+export async function getSeriousAdverseEvents(
+  drugName?: string,
+  limit: number = 10,
+): Promise<AdverseEvent[]> {
+  try {
+    let searchQuery = "serious:1";
+    
+    if (drugName) {
+      searchQuery += `+AND+patient.drug.medicinalproduct:${drugName}`;
+    }
+    
+    const res = await superagent
+      .get(`${FDA_API_BASE}/drug/event.json`)
+      .query({
+        search: searchQuery,
+        limit: limit,
+      })
+      .set("User-Agent", USER_AGENT);
+
+    return res.body.results || [];
   } catch (error) {
     return [];
   }
