@@ -16,6 +16,7 @@ import {
   getSeriousAdverseEvents,
   SearchField,
 } from "./utils.js";
+import { FDA_API_BASE, USER_AGENT } from "./constants.js";
 
 const server = new McpServer({
   name: "medical-mcp",
@@ -112,11 +113,45 @@ server.tool(
         ],
       };
     } catch (error: any) {
+      const originalError = error.originalError || error;
+      const context = error.context || {};
+      
+      const debugInfo = `
+🔍 DEBUG INFO:
+- Query: "${query}"
+- Search Field: "${search_field}" 
+- Limit: ${limit}
+- FDA API Base: ${FDA_API_BASE}
+- User Agent: ${USER_AGENT}
+- Node Environment: ${process.env.NODE_ENV || 'unknown'}
+- Docker Container: ${process.env.HOSTNAME || 'unknown'}
+
+📋 ERROR DETAILS:
+- Error Type: ${originalError.constructor.name}
+- Error Message: ${originalError.message}
+- HTTP Status: ${originalError.status || 'N/A'}
+- Error Code: ${originalError.code || 'N/A'} 
+- System Call: ${originalError.syscall || 'N/A'}
+- Error Number: ${originalError.errno || 'N/A'}
+- Target Hostname: ${originalError.hostname || 'N/A'}
+
+🌐 NETWORK DIAGNOSTICS:
+- Can resolve DNS? ${originalError.code === 'ENOTFOUND' ? '❌ NO' : '✅ Likely yes'}
+- Network timeout? ${originalError.code === 'ETIMEDOUT' ? '❌ YES' : '✅ No timeout detected'}
+- Connection refused? ${originalError.code === 'ECONNREFUSED' ? '❌ YES' : '✅ No connection issues'}
+- Docker network issue? ${originalError.code === 'ENOTFOUND' && process.env.HOSTNAME ? '⚠️ POSSIBLE' : 'Unlikely'}
+
+💡 SUGGESTIONS:
+${originalError.code === 'ENOTFOUND' ? '• Check Docker DNS settings and external network access\n• Verify FDA API is accessible from container\n• Consider using --network=host for testing' : ''}
+${originalError.status >= 500 ? '• FDA API server error - try again later\n• Check FDA API status at https://api.fda.gov' : ''}
+${originalError.status === 400 ? '• Invalid search query format\n• Check search parameters and field names' : ''}
+      `;
+      
       return {
         content: [
           {
             type: "text",
-            text: `Error searching drugs: ${error.message || "Unknown error"}`,
+            text: `❌ Error searching drugs: ${error.message}\n\n${debugInfo}`,
           },
         ],
       };

@@ -34,54 +34,71 @@ export async function searchDrugs(
   limit: number = 10,
   searchField: SearchField = "all",
 ): Promise<DrugLabel[]> {
-  let searchQuery: string;
+  try {
+    let searchQuery: string;
 
-  // Build search query based on field type
-  switch (searchField) {
-    case "brand_name":
-      searchQuery = `openfda.brand_name:${query}`;
-      break;
-    case "generic_name":
-      searchQuery = `openfda.generic_name:${query}`;
-      break;
-    case "active_ingredient":
-      // Use substance_name as active_ingredient might not be directly searchable
-      searchQuery = `openfda.substance_name:${query}`;
-      break;
-    case "substance_name":
-      searchQuery = `openfda.substance_name:${query}`;
-      break;
-    case "manufacturer_name":
-      searchQuery = `openfda.manufacturer_name:${query}`;
-      break;
-    case "drug_interactions":
-      searchQuery = `drug_interactions:${query}`;
-      break;
-    case "indications_and_usage":
-      searchQuery = `indications_and_usage:${query}`;
-      break;
-    case "route":
-      searchQuery = `openfda.route:${query}`;
-      break;
-    case "dosage_form":
-      searchQuery = `openfda.dosage_form:${query}`;
-      break;
-    case "all":
-    default:
-      // Search across multiple fields with OR logic
-      searchQuery = `openfda.brand_name:${query}+OR+openfda.generic_name:${query}+OR+openfda.substance_name:${query}+OR+indications_and_usage:${query}`;
-      break;
+    // Build search query based on field type
+    switch (searchField) {
+      case "brand_name":
+        searchQuery = `openfda.brand_name:${query}`;
+        break;
+      case "generic_name":
+        searchQuery = `openfda.generic_name:${query}`;
+        break;
+      case "active_ingredient":
+        // Use substance_name as active_ingredient might not be directly searchable
+        searchQuery = `openfda.substance_name:${query}`;
+        break;
+      case "substance_name":
+        searchQuery = `openfda.substance_name:${query}`;
+        break;
+      case "manufacturer_name":
+        searchQuery = `openfda.manufacturer_name:${query}`;
+        break;
+      case "drug_interactions":
+        searchQuery = `drug_interactions:${query}`;
+        break;
+      case "indications_and_usage":
+        searchQuery = `indications_and_usage:${query}`;
+        break;
+      case "route":
+        searchQuery = `openfda.route:${query}`;
+        break;
+      case "dosage_form":
+        searchQuery = `openfda.dosage_form:${query}`;
+        break;
+      case "all":
+      default:
+        // Search across multiple fields with OR logic
+        searchQuery = `openfda.brand_name:${query}+OR+openfda.generic_name:${query}+OR+openfda.substance_name:${query}+OR+indications_and_usage:${query}`;
+        break;
+    }
+
+    const res = await superagent
+      .get(`${FDA_API_BASE}/drug/label.json`)
+      .query({
+        search: searchQuery,
+        limit: limit,
+      })
+      .set("User-Agent", USER_AGENT)
+      .timeout({
+        response: 30000, // 30 second timeout
+        deadline: 60000  // 1 minute total
+      });
+
+    return res.body.results || [];
+  } catch (error: any) {
+    // Throw the error with additional context for the MCP handler to catch
+    const contextualError = new Error(`FDA API Error: ${error.message}`);
+    (contextualError as any).originalError = error;
+    (contextualError as any).context = {
+      query,
+      searchField,
+      limit,
+      apiUrl: `${FDA_API_BASE}/drug/label.json`
+    };
+    throw contextualError;
   }
-
-  const res = await superagent
-    .get(`${FDA_API_BASE}/drug/label.json`)
-    .query({
-      search: searchQuery,
-      limit: limit,
-    })
-    .set("User-Agent", USER_AGENT);
-
-  return res.body.results || [];
 }
 
 // Enhanced search function for active ingredients specifically
@@ -89,18 +106,36 @@ export async function searchDrugsByActiveIngredient(
   ingredient: string,
   limit: number = 10,
 ): Promise<DrugLabel[]> {
-  // Search in substance_name field (active_ingredient may not be searchable directly)
-  const searchQuery = `openfda.substance_name:${ingredient}`;
-  
-  const res = await superagent
-    .get(`${FDA_API_BASE}/drug/label.json`)
-    .query({
-      search: searchQuery,
-      limit: limit,
-    })
-    .set("User-Agent", USER_AGENT);
+  try {
+    console.log(`[DEBUG] searchDrugsByActiveIngredient called with ingredient: "${ingredient}", limit: ${limit}`);
+    
+    // Search in substance_name field (active_ingredient may not be searchable directly)
+    const searchQuery = `openfda.substance_name:${ingredient}`;
+    console.log(`[DEBUG] searchDrugsByActiveIngredient query: "${searchQuery}"`);
+    
+    const res = await superagent
+      .get(`${FDA_API_BASE}/drug/label.json`)
+      .query({
+        search: searchQuery,
+        limit: limit,
+      })
+      .set("User-Agent", USER_AGENT)
+      .timeout({
+        response: 30000,
+        deadline: 60000
+      });
 
-  return res.body.results || [];
+    console.log(`[DEBUG] searchDrugsByActiveIngredient response status: ${res.status}, results: ${res.body?.results?.length || 0}`);
+    return res.body.results || [];
+  } catch (error: any) {
+    console.error(`[ERROR] searchDrugsByActiveIngredient failed:`, {
+      message: error.message,
+      status: error.status,
+      response: error.response?.text || error.response?.body,
+      code: error.code
+    });
+    return [];
+  }
 }
 
 // Search for drug interactions
