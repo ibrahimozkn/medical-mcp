@@ -29,64 +29,100 @@ export type SearchField =
   | "dosage_form"
   | "all";
 
+// Retry helper function for FDA API calls
+async function retryFDAApiCall<T>(
+  apiCall: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await apiCall();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Don't retry on client errors (400-499) or certain server errors
+      if (error.status && error.status < 500 && error.status !== 429) {
+        throw error;
+      }
+      
+      // If this was the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
+
 export async function searchDrugs(
   query: string,
   limit: number = 10,
   searchField: SearchField = "all",
 ): Promise<DrugLabel[]> {
+  let searchQuery: string;
+
+  // Build search query based on field type
+  switch (searchField) {
+    case "brand_name":
+      searchQuery = `openfda.brand_name:${query}`;
+      break;
+    case "generic_name":
+      searchQuery = `openfda.generic_name:${query}`;
+      break;
+    case "active_ingredient":
+      // Use substance_name as active_ingredient might not be directly searchable
+      searchQuery = `openfda.substance_name:${query}`;
+      break;
+    case "substance_name":
+      searchQuery = `openfda.substance_name:${query}`;
+      break;
+    case "manufacturer_name":
+      searchQuery = `openfda.manufacturer_name:${query}`;
+      break;
+    case "drug_interactions":
+      searchQuery = `drug_interactions:${query}`;
+      break;
+    case "indications_and_usage":
+      searchQuery = `indications_and_usage:${query}`;
+      break;
+    case "route":
+      searchQuery = `openfda.route:${query}`;
+      break;
+    case "dosage_form":
+      searchQuery = `openfda.dosage_form:${query}`;
+      break;
+    case "all":
+    default:
+      // Search across multiple fields with OR logic
+      searchQuery = `openfda.brand_name:${query}+OR+openfda.generic_name:${query}+OR+openfda.substance_name:${query}+OR+indications_and_usage:${query}`;
+      break;
+  }
+
   try {
-    let searchQuery: string;
+    return await retryFDAApiCall(async () => {
+      const res = await superagent
+        .get(`${FDA_API_BASE}/drug/label.json`)
+        .query({
+          search: searchQuery,
+          limit: limit,
+        })
+        .set("User-Agent", USER_AGENT)
+        .timeout({
+          response: 30000, // 30 second timeout
+          deadline: 60000  // 1 minute total
+        });
 
-    // Build search query based on field type
-    switch (searchField) {
-      case "brand_name":
-        searchQuery = `openfda.brand_name:${query}`;
-        break;
-      case "generic_name":
-        searchQuery = `openfda.generic_name:${query}`;
-        break;
-      case "active_ingredient":
-        // Use substance_name as active_ingredient might not be directly searchable
-        searchQuery = `openfda.substance_name:${query}`;
-        break;
-      case "substance_name":
-        searchQuery = `openfda.substance_name:${query}`;
-        break;
-      case "manufacturer_name":
-        searchQuery = `openfda.manufacturer_name:${query}`;
-        break;
-      case "drug_interactions":
-        searchQuery = `drug_interactions:${query}`;
-        break;
-      case "indications_and_usage":
-        searchQuery = `indications_and_usage:${query}`;
-        break;
-      case "route":
-        searchQuery = `openfda.route:${query}`;
-        break;
-      case "dosage_form":
-        searchQuery = `openfda.dosage_form:${query}`;
-        break;
-      case "all":
-      default:
-        // Search across multiple fields with OR logic
-        searchQuery = `openfda.brand_name:${query}+OR+openfda.generic_name:${query}+OR+openfda.substance_name:${query}+OR+indications_and_usage:${query}`;
-        break;
-    }
+      return res.body.results || [];
+    });
 
-    const res = await superagent
-      .get(`${FDA_API_BASE}/drug/label.json`)
-      .query({
-        search: searchQuery,
-        limit: limit,
-      })
-      .set("User-Agent", USER_AGENT)
-      .timeout({
-        response: 30000, // 30 second timeout
-        deadline: 60000  // 1 minute total
-      });
-
-    return res.body.results || [];
   } catch (error: any) {
     // Throw the error with additional context for the MCP handler to catch
     const contextualError = new Error(`FDA API Error: ${error.message}`);
@@ -95,7 +131,9 @@ export async function searchDrugs(
       query,
       searchField,
       limit,
-      apiUrl: `${FDA_API_BASE}/drug/label.json`
+      searchQuery: searchQuery,
+      apiUrl: `${FDA_API_BASE}/drug/label.json`,
+      retryAttempted: true
     };
     throw contextualError;
   }
@@ -470,15 +508,21 @@ export async function searchAdverseEvents(
       searchQuery = `patient.reaction.${searchField}:${query}`;
     }
     
-    const res = await superagent
-      .get(`${FDA_API_BASE}/drug/event.json`)
-      .query({
-        search: searchQuery,
-        limit: limit,
-      })
-      .set("User-Agent", USER_AGENT);
+    return await retryFDAApiCall(async () => {
+      const res = await superagent
+        .get(`${FDA_API_BASE}/drug/event.json`)
+        .query({
+          search: searchQuery,
+          limit: limit,
+        })
+        .set("User-Agent", USER_AGENT)
+        .timeout({
+          response: 30000,
+          deadline: 60000
+        });
 
-    return res.body.results || [];
+      return res.body.results || [];
+    });
   } catch (error) {
     return [];
   }

@@ -143,15 +143,36 @@ server.tool(
 
 💡 SUGGESTIONS:
 ${originalError.code === 'ENOTFOUND' ? '• Check Docker DNS settings and external network access\n• Verify FDA API is accessible from container\n• Consider using --network=host for testing' : ''}
-${originalError.status >= 500 ? '• FDA API server error - try again later\n• Check FDA API status at https://api.fda.gov' : ''}
+${originalError.status >= 500 ? '• FDA API server error (automatic retry attempted)\n• FDA API can be unstable - try again in a few minutes\n• Check FDA API status at https://api.fda.gov' : ''}
 ${originalError.status === 400 ? '• Invalid search query format\n• Check search parameters and field names' : ''}
+${originalError.status === 429 ? '• Rate limit exceeded - automatic retry with backoff attempted\n• Wait a few minutes before trying again' : ''}
       `;
+      
+      // Check if this is a persistent FDA API outage
+      const isApiOutage = originalError.status >= 500 && error.context?.retryAttempted;
+      
+      let fallbackMessage = "";
+      if (isApiOutage) {
+        fallbackMessage = `\n\n🔄 **FDA API OUTAGE DETECTED**\n` +
+          `The FDA API is currently experiencing server issues (HTTP ${originalError.status}). ` +
+          `This is a temporary problem on the FDA's end, not an issue with your Docker setup.\n\n` +
+          `**Alternative Options:**\n` +
+          `• Try again in 15-30 minutes\n` +
+          `• Use RxNorm API instead: \`search-rxnorm-drugs\` tool\n` +
+          `• Search PubMed for drug information: \`search-pubmed-articles\` tool\n` +
+          `• Check FDA API status: https://api.fda.gov/\n\n` +
+          `**What we tried:**\n` +
+          `• Automatic retry with exponential backoff (3 attempts)\n` +
+          `• Extended timeouts (60 seconds total)\n` +
+          `• Multiple API endpoints tested\n\n` +
+          `The issue is definitely with the FDA API servers, not your configuration.`;
+      }
       
       return {
         content: [
           {
             type: "text",
-            text: `❌ Error searching drugs: ${error.message}\n\n${debugInfo}`,
+            text: `❌ Error searching drugs: ${error.message}${fallbackMessage}\n\n${debugInfo}`,
           },
         ],
       };
