@@ -73,6 +73,17 @@ export type WHOIndicator = {
   Date: string;
 };
 
+export type HealthIndicator = {
+  country: string;
+  countryCode: string;
+  indicator: string;
+  indicatorCode: string;
+  year: string;
+  value: number | null;
+  unit: string;
+  source: 'WHO' | 'World Bank';
+};
+
 export type RxNormDrug = {
   rxcui: string;
   name: string;

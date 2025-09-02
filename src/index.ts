@@ -408,25 +408,25 @@ server.tool(
 
 server.tool(
   "get-health-statistics",
-  "Get health statistics and indicators from WHO Global Health Observatory",
+  "Get health statistics and indicators from World Bank Open Data API with reliable global health data",
   {
     indicator: z
       .string()
       .describe(
-        "Health indicator to search for (e.g., 'Life expectancy', 'Mortality rate')",
+        "Health indicator to search for (e.g., 'Life expectancy', 'Mortality rate', 'Infant mortality', 'Birth rate', 'Death rate', 'Population growth') or World Bank indicator code (e.g., 'SP.DYN.LE00.IN')",
       ),
     country: z
       .string()
       .optional()
-      .describe("Country code (e.g., 'USA', 'GBR') - optional"),
+      .describe("Country code (e.g., 'USA', 'GBR', 'CAN') - optional, omit for all countries"),
     limit: z
       .number()
       .int()
       .min(1)
-      .max(20)
+      .max(50)
       .optional()
       .default(10)
-      .describe("Number of results to return (max 20)"),
+      .describe("Number of results to return (max 50)"),
   },
   async ({ indicator, country, limit }) => {
     try {
@@ -437,7 +437,7 @@ server.tool(
           content: [
             {
               type: "text",
-              text: `No health indicators found for "${indicator}"${country ? ` in ${country}` : ""}. Try a different search term.`,
+              text: `No health indicators found for "${indicator}"${country ? ` in ${country}` : ""}.\n\nSupported indicators:\n• Life expectancy\n• Mortality rate / Infant mortality\n• Birth rate\n• Death rate\n• Population growth\n\nOr use World Bank indicator codes like:\n• SP.DYN.LE00.IN (Life expectancy)\n• SP.DYN.IMRT.IN (Infant mortality)\n• SP.DYN.CBRT.IN (Birth rate)\n\nTry a different search term or check your country code.`,
             },
           ],
         };
@@ -445,19 +445,17 @@ server.tool(
 
       let result = `**Health Statistics: ${indicator}**\n\n`;
       if (country) {
-        result += `Country: ${country}\n`;
+        result += `Country Filter: ${country}\n`;
       }
-      result += `Found ${indicators.length} data points\n\n`;
+      result += `Found ${indicators.length} data points from ${indicators[0]?.source || 'World Bank'}\n\n`;
 
       const displayIndicators = indicators.slice(0, limit);
       displayIndicators.forEach((ind, index) => {
-        result += `${index + 1}. **${ind.SpatialDim}** (${ind.TimeDim})\n`;
-        result += `   Value: ${ind.Value} ${ind.Comments || ""}\n`;
-        result += `   Numeric Value: ${ind.NumericValue}\n`;
-        if (ind.Low && ind.High) {
-          result += `   Range: ${ind.Low} - ${ind.High}\n`;
-        }
-        result += `   Date: ${ind.Date}\n\n`;
+        result += `${index + 1}. **${ind.country}** (${ind.year})\n`;
+        result += `   Indicator: ${ind.indicator}\n`;
+        result += `   Value: ${ind.value}${ind.unit ? ` ${ind.unit}` : ''}\n`;
+        result += `   Country Code: ${ind.countryCode}\n`;
+        result += `   Source: ${ind.source}\n\n`;
       });
 
       return {

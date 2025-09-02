@@ -4,6 +4,7 @@ import {
   PubMedArticle,
   RxNormDrug,
   WHOIndicator,
+  HealthIndicator,
   AdverseEvent,
 } from "./types.js";
 import superagent from "superagent";
@@ -15,6 +16,7 @@ import {
   RXNAV_API_BASE,
   USER_AGENT,
   WHO_API_BASE,
+  WORLD_BANK_API_BASE,
 } from "./constants.js";
 
 export type SearchField = 
@@ -204,25 +206,94 @@ export async function getDrugByNDC(ndc: string): Promise<DrugLabel | null> {
   }
 }
 
-// WHO API functions
+// Health Statistics API functions (using World Bank API)
 export async function getHealthIndicators(
   indicatorName: string,
   country?: string,
-): Promise<WHOIndicator[]> {
-  let filter = `IndicatorName eq '${indicatorName}'`;
-  if (country) {
-    filter += ` and SpatialDim eq '${country}'`;
+): Promise<HealthIndicator[]> {
+  try {
+    // Map common health queries to World Bank indicators
+    const healthIndicatorMap: Record<string, { code: string; name: string }> = {
+      'life expectancy': { 
+        code: 'SP.DYN.LE00.IN', 
+        name: 'Life expectancy at birth, total (years)' 
+      },
+      'mortality rate': { 
+        code: 'SP.DYN.IMRT.IN', 
+        name: 'Mortality rate, infant (per 1,000 live births)' 
+      },
+      'infant mortality': { 
+        code: 'SP.DYN.IMRT.IN', 
+        name: 'Mortality rate, infant (per 1,000 live births)' 
+      },
+      'birth rate': { 
+        code: 'SP.DYN.CBRT.IN', 
+        name: 'Birth rate, crude (per 1,000 people)' 
+      },
+      'death rate': { 
+        code: 'SP.DYN.CDRT.IN', 
+        name: 'Death rate, crude (per 1,000 people)' 
+      },
+      'population growth': { 
+        code: 'SP.POP.GROW', 
+        name: 'Population growth (annual %)' 
+      }
+    };
+
+    const queryLower = indicatorName.toLowerCase();
+    let indicatorInfo = null;
+    
+    // Find matching indicator
+    for (const [keyword, info] of Object.entries(healthIndicatorMap)) {
+      if (queryLower.includes(keyword)) {
+        indicatorInfo = info;
+        break;
+      }
+    }
+    
+    // If no predefined mapping found, check if it's a direct World Bank indicator code
+    if (!indicatorInfo) {
+      if (indicatorName.match(/^[A-Z]{2}\.[A-Z]{2,4}\.[A-Z0-9]{2,8}(\.[A-Z0-9]{2})?$/)) {
+        indicatorInfo = { code: indicatorName, name: indicatorName };
+      } else {
+        return [];
+      }
+    }
+
+    const countryCode = country || 'all';
+    const res = await superagent
+      .get(`${WORLD_BANK_API_BASE}/country/${countryCode}/indicator/${indicatorInfo.code}`)
+      .query({
+        format: 'json',
+        per_page: 50,
+        date: '2018:2023' // Recent years only
+      })
+      .set("User-Agent", USER_AGENT)
+      .timeout({ response: 15000 });
+
+    if (!res.body || !Array.isArray(res.body) || res.body.length < 2) {
+      return [];
+    }
+
+    const data = res.body[1] || [];
+    
+    return data
+      .filter((item: any) => item.value !== null)
+      .map((item: any) => ({
+        country: item.country.value,
+        countryCode: item.countryiso3code || item.country.id,
+        indicator: item.indicator.value,
+        indicatorCode: item.indicator.id,
+        year: item.date,
+        value: item.value,
+        unit: item.unit || '',
+        source: 'World Bank' as const
+      }));
+
+  } catch (error: any) {
+    console.error('Error fetching health indicators from World Bank API:', error.message);
+    return [];
   }
-
-  const res = await superagent
-    .get(`${WHO_API_BASE}/Indicator`)
-    .query({
-      $filter: filter,
-      $format: "json",
-    })
-    .set("User-Agent", USER_AGENT);
-
-  return res.body.value || [];
 }
 
 // RxNorm API functions
