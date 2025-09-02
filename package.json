@@ -15,15 +15,14 @@
   "keywords": [
     "medical",
     "healthcare",
-    "drugs",
-    "fda",
-    "who",
+    "research",
     "pubmed",
+    "scholar",
     "mcp"
   ],
   "author": "",
   "license": "ISC",
-  "description": "A Model Context Protocol (MCP) server that provides comprehensive medical information by querying multiple authoritative medical APIs including FDA, WHO, PubMed, and RxNorm.",
+  "description": "A Model Context Protocol (MCP) server that provides medical research search tools via PubMed and Google Scholar.",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.0",
     "puppeteer": "^24.12.1",

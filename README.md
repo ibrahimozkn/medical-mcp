@@ -1,84 +1,11 @@
 # Medical MCP Server
 [![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/JamesANZ/medical-mcp)](https://archestra.ai/mcp-catalog/jamesanz__medical-mcp)
 
-A Model Context Protocol (MCP) server that provides comprehensive medical information by querying multiple authoritative medical APIs including FDA, WHO, PubMed, and RxNorm.
+A Model Context Protocol (MCP) server that provides medical research information by querying PubMed and Google Scholar.
 
 ## Features
 
-This MCP server offers five specialized tools for querying medical information from reliable sources:
-
-### 💊 Drug Information Tools
-
-#### `search-drugs`
-
-Search for drug information using the FDA database.
-
-**Input:**
-
-- `query` (string): Drug name to search for (brand name or generic name)
-- `limit` (optional, number): Number of results to return (1-50, default: 10)
-
-**Output:**
-
-- Drug information including brand name, generic name, manufacturer, route, dosage form, and purpose
-
-**Example:**
-
-```
-Drug Search Results for "Advil"
-
-Found 1 drug(s)
-
-1. **ADVIL**
-   Generic Name: IBUPROFEN
-   Manufacturer: PFIZER CONSUMER HEALTHCARE
-   Route: ORAL
-   Dosage Form: TABLET
-   Purpose: For temporary relief of minor aches and pains...
-   Last Updated: 20210902
-```
-
-#### `get-drug-details`
-
-Get detailed information about a specific drug by NDC (National Drug Code).
-
-**Input:**
-
-- `ndc` (string): National Drug Code (NDC) of the drug
-
-**Output:**
-
-- Comprehensive drug information including warnings, drug interactions, and clinical pharmacology
-
-### 📊 Health Statistics Tools
-
-#### `get-health-statistics`
-
-Get health statistics and indicators from WHO Global Health Observatory.
-
-**Input:**
-
-- `indicator` (string): Health indicator to search for (e.g., 'Life expectancy', 'Mortality rate')
-- `country` (optional, string): Country code (e.g., 'USA', 'GBR')
-- `limit` (optional, number): Number of results to return (1-20, default: 10)
-
-**Output:**
-
-- Health statistics with values, ranges, and temporal data
-
-**Example:**
-
-```
-Health Statistics: Life expectancy at birth (years)
-
-Country: USA
-Found 10 data points
-
-1. **USA** (2019)
-   Value: 78.5 years
-   Numeric Value: 78.5
-   Date: 2019-12-31
-```
+This MCP server offers two tools for querying medical literature from reliable sources:
 
 ### 🔬 Medical Literature Tools
 
@@ -137,20 +64,6 @@ Found 10 article(s)
 
 **Note:** This tool uses web scraping to access Google Scholar since it doesn't provide a public API. It includes rate limiting protection and stealth measures to avoid detection.
 
-### 🏥 Drug Nomenclature Tools
-
-#### `search-drug-nomenclature`
-
-Search for drug information using RxNorm (standardized drug nomenclature).
-
-**Input:**
-
-- `query` (string): Drug name to search for in RxNorm database
-
-**Output:**
-
-- Standardized drug information with RxCUI codes, synonyms, and term types
-
 ## Installation
 
 1. Clone this repository:
@@ -188,38 +101,13 @@ The server runs on stdio and can be connected to any MCP-compatible client.
 
 Here are some example queries you can make with this MCP server:
 
-#### Search for Drug Information
+#### Search Google Scholar
 
 ```json
 {
-  "tool": "search-drugs",
+  "tool": "search-google-scholar",
   "arguments": {
-    "query": "Tylenol",
-    "limit": 5
-  }
-}
-```
-
-#### Get Drug Details by NDC
-
-```json
-{
-  "tool": "get-drug-details",
-  "arguments": {
-    "ndc": "00071015527"
-  }
-}
-```
-
-#### Get Health Statistics
-
-```json
-{
-  "tool": "get-health-statistics",
-  "arguments": {
-    "indicator": "Life expectancy at birth (years)",
-    "country": "USA",
-    "limit": 5
+    "query": "machine learning healthcare"
   }
 }
 ```
@@ -249,31 +137,13 @@ Here are some example queries you can make with this MCP server:
 
 ## API Endpoints
 
-This MCP server integrates with the following medical APIs:
-
-### FDA API
-
-- `GET /drug/label.json` - Drug labeling information
-- Search by brand name, generic name, or NDC
-- Provides safety information, warnings, and clinical data
-
-### WHO Global Health Observatory API
-
-- `GET /api/Indicator` - Health statistics and indicators
-- Global health data with country-specific information
-- Temporal data for trend analysis
+This MCP server integrates with the following sources:
 
 ### PubMed API
 
 - `GET /esearch.fcgi` - Search for medical articles
 - `GET /efetch.fcgi` - Retrieve article details
 - Access to millions of medical research papers
-
-### RxNorm API
-
-- `GET /REST/drugs.json` - Standardized drug nomenclature
-- Drug name standardization and relationships
-- Clinical drug information
 
 ### Google Scholar (Web Scraping)
 
@@ -284,33 +154,12 @@ This MCP server integrates with the following medical APIs:
 
 ## Data Sources
 
-### FDA (Food and Drug Administration)
-
-- **Source**: Official FDA drug labeling database
-- **Coverage**: All FDA-approved drugs in the United States
-- **Data**: Drug safety, efficacy, dosage, warnings, and interactions
-- **Update Frequency**: Real-time as drugs are approved or labeling changes
-
-### WHO (World Health Organization)
-
-- **Source**: Global Health Observatory database
-- **Coverage**: Global health statistics from 194 countries
-- **Data**: Life expectancy, mortality rates, disease prevalence, and health indicators
-- **Update Frequency**: Annual updates with historical data
-
 ### PubMed (National Library of Medicine)
 
 - **Source**: MEDLINE database of medical literature
 - **Coverage**: Over 30 million citations from medical journals
 - **Data**: Research articles, clinical studies, and medical reviews
 - **Update Frequency**: Daily updates as new articles are published
-
-### RxNorm (National Library of Medicine)
-
-- **Source**: Standardized drug nomenclature system
-- **Coverage**: Clinical drugs available in the United States
-- **Data**: Drug names, codes, relationships, and clinical information
-- **Update Frequency**: Weekly updates
 
 ### Google Scholar (Web Scraping)
 
